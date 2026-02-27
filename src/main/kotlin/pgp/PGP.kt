@@ -1,6 +1,7 @@
 package com.symbolscope.signauth.pgp
 
 import org.bouncycastle.bcpg.ArmoredOutputStream
+import org.bouncycastle.bcpg.CompressionAlgorithmTags
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
 import org.bouncycastle.bcpg.sig.KeyFlags
@@ -40,6 +41,9 @@ interface KeyStore {
 }
 
 class PGP(val keyStore: KeyStore) {
+
+    // ── Signing / verification ──────────────────────────────────────────────
+
     fun isValid(signed: SignedReource): Boolean {
         val sig = PGPUtils.readDetachedSignature(signed.signature)
         if (!keyStore.userOwnsKey(signed.content.signedBy, sig.keyID)) {
@@ -57,6 +61,63 @@ class PGP(val keyStore: KeyStore) {
     fun sign(content: Signable, key: PGPSecretKey, passphrase: String): SignedReource {
         val sig = PGPUtils.sign(content.write(), key, passphrase)
         return SignedReource(content, PGPUtils.writeDetachedSignature(sig))
+    }
+
+    // ── Encryption / decryption ─────────────────────────────────────────────
+
+    /**
+     * Encrypt [plaintext] for [recipientUserId]. Returns an ASCII-armored PGP message.
+     */
+    fun encrypt(plaintext: String, recipientUserId: String): String {
+        val user = keyStore.getUser(recipientUserId)
+            ?: throw Exception("User $recipientUserId not found")
+        val recipientKey = user.publicKeyIds.firstNotNullOfOrNull { keyStore.get(it) }
+            ?: throw Exception("No public key found for $recipientUserId")
+        return PGPUtils.encrypt(plaintext, recipientKey)
+    }
+
+    /**
+     * Decrypt an ASCII-armored PGP message using the matching secret key found in the keystore.
+     */
+    fun decrypt(armored: String, passphrase: String): String {
+        val keyId = PGPUtils.findDecryptingKeyId(armored)
+            ?: throw Exception("No recipient key ID found in message")
+        val secretKey = keyStore.getSecret(keyId)
+            ?: throw Exception("No secret key for key ID $keyId in keystore")
+        return PGPUtils.decrypt(armored, secretKey, passphrase)
+    }
+
+    /**
+     * Encrypt [plaintext] for [recipientUserId], signing it as [signerUserId].
+     * Returns an ASCII-armored, signed+encrypted PGP message block.
+     */
+    fun encryptAndSign(
+        plaintext: String,
+        recipientUserId: String,
+        signerUserId: String,
+        passphrase: String
+    ): String {
+        val recipientUser = keyStore.getUser(recipientUserId)
+            ?: throw Exception("Recipient $recipientUserId not found")
+        val recipientKey = recipientUser.publicKeyIds.firstNotNullOfOrNull { keyStore.get(it) }
+            ?: throw Exception("No public key found for $recipientUserId")
+        val signerKey = keyStore.getSecret(signerUserId)
+            ?: throw Exception("No secret key for signer $signerUserId")
+        return PGPUtils.encryptAndSign(plaintext, recipientKey, signerKey, passphrase)
+    }
+
+    /**
+     * Decrypt and verify a signed+encrypted ASCII-armored PGP message block.
+     * The matching secret key is located automatically from the keystore.
+     */
+    fun decryptAndVerify(armored: String, passphrase: String): VerifiedDecryption {
+        val keyId = PGPUtils.findDecryptingKeyId(armored)
+            ?: throw Exception("No recipient key ID found in message")
+        val secretKey = keyStore.getSecret(keyId)
+            ?: throw Exception("No secret key for key ID $keyId in keystore")
+        return PGPUtils.decryptAndVerify(armored, secretKey, passphrase) { sigKeyId ->
+            keyStore.get(sigKeyId)
+        }
     }
 }
 
@@ -209,5 +270,205 @@ object PGPUtils {
         }
         throw IllegalArgumentException("No email")
     }
-}
 
+    // ── Encryption ──────────────────────────────────────────────────────────
+
+    /**
+     * Encrypt [plaintext] for [recipientKey]. Returns an ASCII-armored PGP message.
+     */
+    fun encrypt(plaintext: String, recipientKey: PGPPublicKey): String {
+        val plainBytes = plaintext.toByteArray(Charsets.UTF_8)
+        val baos = ByteArrayOutputStream()
+        val armoredOut = ArmoredOutputStream(baos)
+
+        val encGen = PGPEncryptedDataGenerator(
+            BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                .setWithIntegrityPacket(true)
+                .setSecureRandom(random)
+        )
+        encGen.addMethod(BcPublicKeyKeyEncryptionMethodGenerator(recipientKey))
+
+        val encOut = encGen.open(armoredOut, ByteArray(1 shl 16))
+        val compGen = PGPCompressedDataGenerator(CompressionAlgorithmTags.ZIP)
+        val compOut = compGen.open(encOut)
+
+        PGPLiteralDataGenerator()
+            .open(compOut, PGPLiteralData.BINARY, "", plainBytes.size.toLong(), Date())
+            .use { it.write(plainBytes) }
+
+        compOut.close()
+        encOut.close()
+        armoredOut.close()
+
+        return baos.toString(Charsets.US_ASCII)
+    }
+
+    /**
+     * Encrypt [plaintext] for [recipientKey] and sign it with [signingKey].
+     * Returns an ASCII-armored, signed+encrypted PGP message block.
+     */
+    fun encryptAndSign(
+        plaintext: String,
+        recipientKey: PGPPublicKey,
+        signingKey: PGPSecretKey,
+        passphrase: String
+    ): String {
+        val privateKey = extractPrivateKey(signingKey, passphrase)
+        val plainBytes = plaintext.toByteArray(Charsets.UTF_8)
+        val baos = ByteArrayOutputStream()
+        val armoredOut = ArmoredOutputStream(baos)
+
+        val encGen = PGPEncryptedDataGenerator(
+            BcPGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256)
+                .setWithIntegrityPacket(true)
+                .setSecureRandom(random)
+        )
+        encGen.addMethod(BcPublicKeyKeyEncryptionMethodGenerator(recipientKey))
+
+        val encOut = encGen.open(armoredOut, ByteArray(1 shl 16))
+        val compGen = PGPCompressedDataGenerator(CompressionAlgorithmTags.ZIP)
+        val compOut = compGen.open(encOut)
+
+        val sigGen = sigGenerator(signingKey)
+        sigGen.init(PGPSignature.BINARY_DOCUMENT, privateKey)
+        sigGen.generateOnePassVersion(false).encode(compOut)
+
+        PGPLiteralDataGenerator()
+            .open(compOut, PGPLiteralData.BINARY, "", plainBytes.size.toLong(), Date())
+            .use { litOut ->
+                litOut.write(plainBytes)
+                sigGen.update(plainBytes)
+            }
+
+        sigGen.generate().encode(compOut)
+        compOut.close()
+        encOut.close()
+        armoredOut.close()
+
+        return baos.toString(Charsets.US_ASCII)
+    }
+
+    // ── Decryption ──────────────────────────────────────────────────────────
+
+    /**
+     * Returns the key ID of the first public-key-encrypted session key in [ciphertext],
+     * or null if the message contains no public-key-encrypted data.
+     */
+    fun findDecryptingKeyId(ciphertext: String): Long? {
+        val pgpStream = PGPUtil.getDecoderStream(
+            ByteArrayInputStream(ciphertext.toByteArray(Charsets.US_ASCII))
+        )
+        val factory = PGPObjectFactory(pgpStream, fingerprintCalculator)
+        var obj = factory.nextObject()
+        if (obj !is PGPEncryptedDataList) obj = factory.nextObject()
+        val encDataList = obj as? PGPEncryptedDataList ?: return null
+        return encDataList.encryptedDataObjects.asSequence()
+            .filterIsInstance<PGPPublicKeyEncryptedData>()
+            .map { it.keyID }
+            .firstOrNull()
+    }
+
+    /**
+     * Decrypt an ASCII-armored PGP message using [secretKey].
+     * Any embedded signature packets are ignored; use [decryptAndVerify] to also verify.
+     */
+    fun decrypt(ciphertext: String, secretKey: PGPSecretKey, passphrase: String): String {
+        val privateKey = extractPrivateKey(secretKey, passphrase)
+        val pgpStream = PGPUtil.getDecoderStream(
+            ByteArrayInputStream(ciphertext.toByteArray(Charsets.US_ASCII))
+        )
+        var factory = PGPObjectFactory(pgpStream, fingerprintCalculator)
+
+        var obj = factory.nextObject()
+        if (obj !is PGPEncryptedDataList) obj = factory.nextObject()
+        val encDataList = obj as? PGPEncryptedDataList
+            ?: throw Exception("No encrypted data found")
+
+        val pbe = encDataList.encryptedDataObjects.asSequence()
+            .filterIsInstance<PGPPublicKeyEncryptedData>()
+            .find { it.keyID == secretKey.keyID }
+            ?: throw Exception("Message not encrypted for key ${secretKey.keyID}")
+
+        val clearStream = pbe.getDataStream(BcPublicKeyDataDecryptorFactory(privateKey))
+        factory = PGPObjectFactory(clearStream, fingerprintCalculator)
+
+        var next = factory.nextObject()
+        if (next is PGPCompressedData) {
+            factory = PGPObjectFactory(next.dataStream, fingerprintCalculator)
+            next = factory.nextObject()
+        }
+        if (next is PGPOnePassSignatureList) {
+            next = factory.nextObject()
+        }
+
+        val literalData = next as? PGPLiteralData
+            ?: throw Exception("Expected literal data, got ${next?.javaClass?.name}")
+        return literalData.inputStream.readBytes().toString(Charsets.UTF_8)
+    }
+
+    /**
+     * Decrypt and verify a signed+encrypted ASCII-armored PGP message block.
+     *
+     * [publicKeyLookup] is called with the signer's key ID and should return the
+     * corresponding public key, or null if it is not available (in which case
+     * [VerifiedDecryption.signatureValid] will be false).
+     */
+    fun decryptAndVerify(
+        ciphertext: String,
+        secretKey: PGPSecretKey,
+        passphrase: String,
+        publicKeyLookup: (Long) -> PGPPublicKey?
+    ): VerifiedDecryption {
+        val privateKey = extractPrivateKey(secretKey, passphrase)
+        val pgpStream = PGPUtil.getDecoderStream(
+            ByteArrayInputStream(ciphertext.toByteArray(Charsets.US_ASCII))
+        )
+        var factory = PGPObjectFactory(pgpStream, fingerprintCalculator)
+
+        var obj = factory.nextObject()
+        if (obj !is PGPEncryptedDataList) obj = factory.nextObject()
+        val encDataList = obj as? PGPEncryptedDataList
+            ?: throw Exception("No encrypted data found")
+
+        val pbe = encDataList.encryptedDataObjects.asSequence()
+            .filterIsInstance<PGPPublicKeyEncryptedData>()
+            .find { it.keyID == secretKey.keyID }
+            ?: throw Exception("Message not encrypted for key ${secretKey.keyID}")
+
+        val clearStream = pbe.getDataStream(BcPublicKeyDataDecryptorFactory(privateKey))
+        factory = PGPObjectFactory(clearStream, fingerprintCalculator)
+
+        var next = factory.nextObject()
+        if (next is PGPCompressedData) {
+            factory = PGPObjectFactory(next.dataStream, fingerprintCalculator)
+            next = factory.nextObject()
+        }
+
+        var onePassSig: PGPOnePassSignature? = null
+        var signedByKeyId: Long? = null
+
+        if (next is PGPOnePassSignatureList) {
+            val ops = next[0]
+            signedByKeyId = ops.keyID
+            val sigPubKey = publicKeyLookup(signedByKeyId)
+            if (sigPubKey != null) {
+                ops.init(BcPGPContentVerifierBuilderProvider(), sigPubKey)
+                onePassSig = ops
+            }
+            next = factory.nextObject()
+        }
+
+        val literalData = next as? PGPLiteralData
+            ?: throw Exception("Expected literal data, got ${next?.javaClass?.name}")
+        val plainBytes = literalData.inputStream.readBytes()
+        onePassSig?.update(plainBytes)
+
+        var sigValid = false
+        val afterData = factory.nextObject()
+        if (afterData is PGPSignatureList && onePassSig != null) {
+            sigValid = onePassSig.verify(afterData[0])
+        }
+
+        return VerifiedDecryption(plainBytes.toString(Charsets.UTF_8), signedByKeyId, sigValid)
+    }
+}

@@ -43,3 +43,11 @@ data class SignedReource(
     val content: Signable,
     val signature: String
 )
+
+data class VerifiedDecryption(
+    val plaintext: String,
+    /** Key ID of the signer, or null if the message was not signed. */
+    val signedByKeyId: Long?,
+    /** True if the signature was present and valid; false if absent, invalid, or the signing key was not found. */
+    val signatureValid: Boolean
+)
