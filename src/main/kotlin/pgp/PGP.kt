@@ -126,7 +126,8 @@ object PGPUtils {
     val digestCalculator: PGPDigestCalculator = BcPGPDigestCalculatorProvider().get(PGPUtil.SHA1)
     val keyEncryptorBuilder = BcPBESecretKeyEncryptorBuilder(PGPEncryptedData.AES_256, digestCalculator)
     val signatureHashGen = PGPSignatureSubpacketGenerator().also {
-        it.setKeyFlags(false, KeyFlags.SIGN_DATA or KeyFlags.CERTIFY_OTHER)
+        it.setKeyFlags(false, KeyFlags.SIGN_DATA or KeyFlags.CERTIFY_OTHER or
+                              KeyFlags.ENCRYPT_COMMS or KeyFlags.ENCRYPT_STORAGE)
         it.setPreferredHashAlgorithms(false, intArrayOf(HashAlgorithmTags.SHA256, HashAlgorithmTags.SHA1))
         it.setPreferredSymmetricAlgorithms(false, intArrayOf(SymmetricKeyAlgorithmTags.AES_256))
     }
@@ -160,7 +161,7 @@ object PGPUtils {
                 random, strength, 12
             )
         )
-        val signKey: PGPKeyPair = BcPGPKeyPair(PGPPublicKey.RSA_SIGN, kpGen.generateKeyPair(), Date())
+        val signKey: PGPKeyPair = BcPGPKeyPair(PGPPublicKey.RSA_GENERAL, kpGen.generateKeyPair(), Date())
 
         val keyRingGen = PGPKeyRingGenerator(
             PGPSignature.POSITIVE_CERTIFICATION,

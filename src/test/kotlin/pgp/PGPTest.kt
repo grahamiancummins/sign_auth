@@ -80,6 +80,43 @@ class PGPTest {
     }
 
     @Test
+    fun testEncryptDecrypt() {
+        val pgp = PGP(MemoryKeyStore())
+        val sec = PGPUtils.generate(TestData.user, TestData.passphrase)
+        pgp.keyStore.store(sec.secretKey)
+
+        val plaintext = "a secret message"
+        val encrypted = pgp.encrypt(plaintext, TestData.user)
+        val decrypted = pgp.decrypt(encrypted, TestData.passphrase)
+
+        assertEquals(plaintext, decrypted)
+    }
+
+    @Test
+    fun testEncryptAndSignDecryptAndVerify() {
+        val store = MemoryKeyStore()
+        val pgp = PGP(store)
+
+        val aliceId = "alice@example.com"
+        val bobId   = "bob@example.com"
+        val alice = PGPUtils.generate(aliceId, TestData.passphrase)
+        val bob   = PGPUtils.generate(bobId,   TestData.passphrase)
+        store.store(alice.secretKey)
+        store.store(bob.secretKey)
+
+        val plaintext = "hello bob, this is alice"
+        // Alice signs and encrypts to Bob.
+        val armored = pgp.encryptAndSign(plaintext, bobId, aliceId, TestData.passphrase)
+
+        // Bob decrypts and verifies Alice's signature.
+        val result = pgp.decryptAndVerify(armored, TestData.passphrase)
+
+        assertEquals(plaintext, result.plaintext)
+        assertEquals(alice.secretKey.keyID, result.signedByKeyId)
+        assertTrue(result.signatureValid)
+    }
+
+    @Test
     fun testEmailExtraction() {
         val key = PGPUtils.publicKeyFromArmoredString(TestData.publicKey)
         val userId = key.userIDs.next()
