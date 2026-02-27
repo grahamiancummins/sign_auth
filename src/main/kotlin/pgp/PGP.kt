@@ -1,5 +1,6 @@
 package com.symbolscope.signauth.pgp
 
+import org.bouncycastle.bcpg.ArmoredInputStream
 import org.bouncycastle.bcpg.ArmoredOutputStream
 import org.bouncycastle.bcpg.CompressionAlgorithmTags
 import org.bouncycastle.bcpg.HashAlgorithmTags
@@ -12,6 +13,8 @@ import org.bouncycastle.openpgp.operator.PGPDigestCalculator
 import org.bouncycastle.openpgp.operator.bc.*
 import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder
 import java.io.*
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.lang.IllegalArgumentException
 import java.math.BigInteger
 import java.security.SecureRandom
@@ -347,6 +350,61 @@ object PGPUtils {
         armoredOut.close()
 
         return baos.toString(Charsets.US_ASCII)
+    }
+
+    // ── Cleartext signed messages ───────────────────────────────────────────
+
+    /**
+     * A parsed `-----BEGIN PGP SIGNED MESSAGE-----` block.
+     *
+     * [bodyBytes] are the bytes read directly from [ArmoredInputStream] during the
+     * cleartext phase — these are already canonicalized (trailing whitespace stripped
+     * per line) and are used only for forwarding the payload.  Signature verification
+     * is performed line-by-line with canonical CRLF endings as required by RFC 4880.
+     */
+    data class CleartextMessage(val bodyBytes: ByteArray, val signature: PGPSignature) {
+        /** Plaintext body with Unix line endings, suitable for forwarding. */
+        val body: String get() = bodyBytes.toString(Charsets.UTF_8).replace("\r\n", "\n")
+    }
+
+    /**
+     * Parse a `-----BEGIN PGP SIGNED MESSAGE-----` armored block into its
+     * body and embedded signature.
+     */
+    fun parseCleartextSigned(armoredMessage: String): CleartextMessage {
+        val ain = ArmoredInputStream(
+            ByteArrayInputStream(armoredMessage.toByteArray(Charsets.UTF_8))
+        )
+        require(ain.isClearText) { "Not a cleartext signed message" }
+
+        val bodyOut = ByteArrayOutputStream()
+        var ch: Int
+        while (ain.read().also { ch = it } >= 0 && ain.isClearText) {
+            bodyOut.write(ch)
+        }
+
+        val sigs = PGPObjectFactory(ain, fingerprintCalculator).nextObject() as? PGPSignatureList
+            ?: throw Exception("No signature found in cleartext message")
+
+        return CleartextMessage(bodyOut.toByteArray(), sigs[0])
+    }
+
+    /**
+     * Verify the signature on a parsed cleartext message.
+     * Feeds each line with canonical CRLF endings (RFC 4880 §7) to the signature verifier.
+     */
+    fun verifyCleartext(message: CleartextMessage, publicKey: PGPPublicKey): Boolean {
+        message.signature.init(BcPGPContentVerifierBuilderProvider(), publicKey)
+        val crlf = byteArrayOf('\r'.code.toByte(), '\n'.code.toByte())
+        BufferedReader(InputStreamReader(ByteArrayInputStream(message.bodyBytes), Charsets.UTF_8))
+            .use { reader ->
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    message.signature.update(line!!.trimEnd().toByteArray(Charsets.UTF_8))
+                    message.signature.update(crlf)
+                }
+            }
+        return message.signature.verify()
     }
 
     // ── Decryption ──────────────────────────────────────────────────────────
