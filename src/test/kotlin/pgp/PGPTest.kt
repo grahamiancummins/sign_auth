@@ -43,6 +43,23 @@ class PGPTest {
     }
 
     @Test
+    fun testVerifyClearSign() {
+        val pubKey = PGPUtils.publicKeyFromArmoredString(TestData.publicKey)
+        val signed = PGPUtils.parseCleartextSigned(TestData.clearsignedMessage)
+        val verified = PGPUtils.verifyCleartext(signed, pubKey)
+        assertTrue(verified)
+    }
+
+    @Test
+    fun testV() {
+        val pubKey = PGPUtils.publicKeyFromArmoredString(TestData.publicKey)
+        val signed = PGPUtils.parseCleartextSigned(TestData.clearsignedMessage)
+        val verified = PGPUtils.verifyCleartext(signed, pubKey)
+        assertTrue(verified)
+    }
+
+
+    @Test
     fun testKeySign() {
         val tomKey = PGPUtils.secretKeyFromArmoredString(TestData.testSecretKey)
         val newPubKey = PGPUtils.generate("dave@idobutthat.info", "test").publicKey

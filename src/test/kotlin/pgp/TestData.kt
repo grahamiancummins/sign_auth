@@ -40,6 +40,30 @@ object TestData {
         -----END PGP SIGNATURE-----
     """.trimIndent()
 
+    val clearsignedMessage = """
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+How many parameters does this version of qwen use?
+
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEaP6XFSNMAgpwE+A8jL9PmNg8/IoFAmmiQ9IACgkQjL9PmNg8
+/Ir23g//fGjsS50mavbzEddbeKcsgOKmF1/p7QGTTyRV0ej/9Xuf8MJV4UsRj4t6
+HuCKHpymnJL4rNqgpup5wGXIiEWObNt5pkG+biEQVp2b+b3kFWuK0VQQyTDkz/xZ
+Sw2lZdtAQ2y0XFa11kpT2EDsn4P/sAdHXKm/sNh/xRfAuTuLBaXoaUWH1NTctNDx
+rWa14LQrcqNpbIoXCVXYACxLSnd0ENq4LgCHKlIh5ippbx68ykFlgg9QkC8Gbxf/
+GvKTEbpG8Yv6Pmcz040oM8o4yq9JyaU5cQwH0geuIyD9W1feSeQ8QRIk6c+07XnL
+batqexHL0zsZzZ/RCmQxWP/WiBh2VlZg9Jm2df6/c3lfDEkYOFdr4qZQ0MHtGHmJ
+gcl6MO06Yz4Or8PjIkxaW23bBblmlr2yQzJwVYN4yTB8WgydGuc/6fVuiGiiAF4Z
+aoRMZjyf9zmyc92c5CPc6JJNKTeqRSjUyuyA01jIQ7wL7jeYlTSISOzW7azhUQOy
+24WBJ+T7Vgy/uhhIG5d+WDx7Zp/ZX3U4TYY2+2UerYaWt7QnZoGjGUJcA8KSBK3Z
+A/JuDTwe8SS3Mg+toUnLv+SmtIMQVN9cTYRXAH37uvKzb/1dPfcaoGBel3zVvafY
+xok2bVyaPwHNe1pIF7StGZzc7LjdCeChPhziVgzSJwOjKEHeroo=
+=Nvdn
+-----END PGP SIGNATURE-----
+    """.trimIndent()
+
     // this is the id keyservers require for publicKey below
     val requiredHexKeyId = "8CBF4F98D83CFC8A"
 
@@ -150,4 +174,5 @@ object TestData {
     =CAme
     -----END PGP PRIVATE KEY BLOCK-----
     """.trimIndent()
+
 }
