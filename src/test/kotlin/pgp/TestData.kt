@@ -40,30 +40,6 @@ object TestData {
         -----END PGP SIGNATURE-----
     """.trimIndent()
 
-    val clearsignedMessage = """
------BEGIN PGP SIGNED MESSAGE-----
-Hash: SHA256
-
-How many parameters is this version of Qwen using?
-
------BEGIN PGP SIGNATURE-----
-
-iQIzBAEBCAAdFiEEaP6XFSNMAgpwE+A8jL9PmNg8/IoFAmmiTWAACgkQjL9PmNg8
-/IpTkhAAta/vyRQi7h+z/ntimeScxslnWdN5dujWy3erhmraN1L1CoIb+O72MCSf
-DSH5TUNXREJhgsWabnaOTJAx+uKwy32cXlJyNtxNAnLKaiZ+TJ+TGBTJLMiiNocj
-K/U4xxXXDQKgGKle6BcvM7CiGnoDJPKMBfHJEBarcKYXluKDAng6bNsUSEGTkRcf
-d+R4Z1hT1iIIPNOdYFcR4q9RdtWQO/XC02at5JXYtyJ9MjItTLb53F/aT4J59sGc
-uV4XLslrnXM0lOf08ZekpNOmyo/U24jCq98DqAvO9/XLn5in4Lhwtzx6pCE51gvM
-BYcdebjoWLxYJYmILdl5Q3dylPNswhIbseuki9G1Mlv3A2SUWHWJzoUKTj7lqOI9
-ny8TzegZLkBQl7wfaW3QRCtxwddpQF9CfNYjl5aTafsGu3NSEUKUMVBTtMj1+8su
-iLYz3wmqBkpPNhC50iDED04Lgo5y+d4D1RPsnPl4uI8Nwc3Ut+kkzuYerG5SNi3w
-Ci0gE/S1e3t9tZVt3ZDqvQedshKq5XCgLURSRrY8Jh1+Gh83C/LRFiNoBTajMr+D
-LeJSYhji8GhefL/YRaFOLEhTK1enl0Ht+4IVS6HZ1UXUI046TmXJ/TZLsVLygU/k
-A3sS3hDXNdvNCHm+Hg7OQ++Hj+s1I+lJroDB6T2x48jEx6O1pCk=
-=bXyJ
------END PGP SIGNATURE-----
-    """.trimIndent()
-
     // this is the id keyservers require for publicKey below
     val requiredHexKeyId = "8CBF4F98D83CFC8A"
 
@@ -173,6 +149,54 @@ A3sS3hDXNdvNCHm+Hg7OQ++Hj+s1I+lJroDB6T2x48jEx6O1pCk=
     V1A=
     =CAme
     -----END PGP PRIVATE KEY BLOCK-----
+    """.trimIndent()
+
+    val encryptedMessage = """
+-----BEGIN PGP MESSAGE-----
+
+hF4DaztKqrjmcuQSAQdAELgy565x4B0/T34WO3E7KgUNkl1nHd8JvAtsSNq4kmkw
+EstE25tAx+EGu77sIeEffrOhfwoBXmfoWTDpS34JM22EmzEgr2bv3O5CIoASsnXp
+0ukB9NybXn5NSzBLMSeYS0BY3J4+N0b4IbjE1dG5/Jx1Yd1r6SiBpxYpfOZZZJS+
+GnhtPS0EBPMf0ARP2QymPXEs1WBHAT5uvgbJajChm2M2V+viW0kfAjojBQlvh5xo
+Xx334QLb5mnRbx4ZiKDYREl5p4MqU0K81fWfDPxF22IP1uQp4UPqoP0iXOBdgoHk
+94BzdmIj5v+WHrDanFGzx7XO3qSm+MILPKkH18nhN2P0kxzgUoRckmeF06N+vO5h
+KIVT+ExeFsHOsZf+u+i9DqeWozJZYaatdR5WqYi8sTVCgWhPprn7GJ298wtwVY+l
+hPv+okmQBOEM04hGA0pLuMa1VJW4XI3IlVRgnnvakyqR9N7bVxDjI7V9ThNVxwLa
+UTNCFhgvuc8OFqBrARY0f/dMvEElGOPdj99o8ZyBZi0ZnDrHz5aYxFGFLCLxBRuL
+TFSFlv8sGDlrEe14gAUkGrg4zQgQr3pPlRnJ/3y/fC9u881mwae2oy/DC6U/4J1I
+zS1BQ+CNUtxHlVmeK0nx6/hq5Z0SR1uyvpedzAS5QOqjxgaNoY2PnOplwRqD7FjA
+5toSAlApqv6ofn3VjDoN1C3/gzvI1+1248ZAEAQFYKpKqUNWWqHSMk02QJok7gY6
+abZFF16wqJyn+iVijuQCRvE41ffMrldjcK7xZZuKFBlD0b9UHKa7WXJECcFPHQHO
+n+2zcgZ2+PQUHb6ReQfX6pQfPrmmReV4zGEkJWDSQPn3gVgkSnAFs3uY9AkrC/3w
+yqP8XdTm7IpruLVjO/Vi+VCsPzlzsyRkc2XgEhSKh2J+N2JjNreY6LtzC/K6He55
+dbRH/ZsxngJs52iI1jV+C2mvLpgZlpdKuXYS4T0XKVs6+wcNOzoP/aKNO8DLy2Dk
+T18DZHpBHONbL+2j1OKgdrp9ZnuXUK3LTJFMhR/BNg9ewQ==
+=FPHV
+-----END PGP MESSAGE-----
+    """.trimIndent()
+
+    val clearsignedMessage = """
+        -----BEGIN PGP SIGNED MESSAGE-----
+        Hash: SHA256
+
+        How many parameters is this version of Qwen using?
+
+        -----BEGIN PGP SIGNATURE-----
+
+        iQIzBAEBCAAdFiEEaP6XFSNMAgpwE+A8jL9PmNg8/IoFAmmiaF8ACgkQjL9PmNg8
+        /IpDIBAApIysMueim5gNINV92uAm1GRpjtPxHrfQO36TnSCk6e0rvjsfqU+WJ/76
+        zKloXLcvhY19GN70gFzcXDxwCKCTi3FD4rd+Mb/XCB4zVTPdn9DcPm22Iv4Du9Wr
+        mA0dCMjI/XPOcp53oVbW0eWHazvo1WczDs8+THVkBjPuItiTyfNa97Ywyh0Wco7M
+        zf9Rgt/qODkmeStTZuxdLt7ZgGSPwEvNAI8tG1Gu8D30q+vbvY8AuQygvS9g/OtG
+        6X4dx/RMTshYgP6pCUQzIbRo7jYysQl8ko5vr958YyZDO3ESIj1tludcy0ABYclS
+        wUaBcfNE38t7pTswsT3rXHfGcNneJjHMO3nxWJKoiWn60IqgZe+65TOfOQu4KBuM
+        v9u06IDRftOki5Igx5cYK464fBz+l/uNZzriyugmU7XV2oJwFy/k9Zg5lMBA/Py/
+        IaWFx95Zksa9iUaPP5L8JWI/M5UbOhtElxIf+aBJl4myGV8QpPT3NEnJ4VVlL9sx
+        KNN7Iv8EJbV4Ifkv4mPx2wHN5lLthvd/qG6bFy+SNq3f/fWShCUuPLUQmVReRDjj
+        qHWLv6OtZLStBp+TCgEq8xhbmPSKQidCdc4u5T5+EZnICCqyCVOkbBWPiBgR2Hgq
+        3w04fZYMtR15Hl72TNxp7+MQQeUvMTiXQlO8p3YJuRsAdJlDclA=
+        =W/jE
+        -----END PGP SIGNATURE-----
     """.trimIndent()
 
 }

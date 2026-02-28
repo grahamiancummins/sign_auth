@@ -99,7 +99,7 @@ fun main() {
 
                 // ── Step 2: reject unknown / invalid signers ────────────────────────
                 if (!decryption.signatureValid) {
-                    call.respond(HttpStatusCode.NotFound)
+                    call.respond(HttpStatusCode.Forbidden, "Signature verification failed")
                     return@post
                 }
 

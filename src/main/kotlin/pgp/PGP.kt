@@ -5,6 +5,7 @@ import org.bouncycastle.bcpg.ArmoredOutputStream
 import org.bouncycastle.bcpg.BCPGOutputStream
 import org.bouncycastle.bcpg.CompressionAlgorithmTags
 import org.bouncycastle.bcpg.HashAlgorithmTags
+import org.bouncycastle.bcpg.KeyIdentifier
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
 import org.bouncycastle.bcpg.sig.KeyFlags
 import org.bouncycastle.crypto.generators.RSAKeyPairGenerator
@@ -79,16 +80,6 @@ class PGP(val keyStore: KeyStore) {
         return PGPUtils.encrypt(plaintext, recipientKey)
     }
 
-    /**
-     * Decrypt an ASCII-armored PGP message using the matching secret key found in the keystore.
-     */
-    fun decrypt(armored: String, passphrase: String): String {
-        val keyId = PGPUtils.findDecryptingKeyId(armored)
-            ?: throw Exception("No recipient key ID found in message")
-        val secretKey = keyStore.getSecret(keyId)
-            ?: throw Exception("No secret key for key ID $keyId in keystore")
-        return PGPUtils.decrypt(armored, secretKey, passphrase)
-    }
 
     /**
      * Encrypt [plaintext] for [recipientUserId], signing it as [signerUserId].
@@ -114,10 +105,10 @@ class PGP(val keyStore: KeyStore) {
      * The matching secret key is located automatically from the keystore.
      */
     fun decryptAndVerify(armored: String, passphrase: String): VerifiedDecryption {
-        val keyId = PGPUtils.findDecryptingKeyId(armored)
+        val keyIdentifier = PGPUtils.findDecryptingKeyId(armored)
             ?: throw Exception("No recipient key ID found in message")
-        val secretKey = keyStore.getSecret(keyId)
-            ?: throw Exception("No secret key for key ID $keyId in keystore")
+        val secretKey = keyStore.getSecret(keyIdentifier.keyId)
+            ?: throw Exception("No secret key for key ID $keyIdentifier in keystore")
         return PGPUtils.decryptAndVerify(armored, secretKey, passphrase) { sigKeyId ->
             keyStore.get(sigKeyId)
         }
@@ -389,7 +380,7 @@ object PGPUtils {
     // ── Cleartext signed messages ───────────────────────────────────────────
 
 
-    data class CleartextMessage(val body: String, val signature: PGPSignature, val hash: String?=null)
+    data class CleartextMessage(val body: String, val signature: PGPSignature)
 
     /**
      * Parse a `-----BEGIN PGP SIGNED MESSAGE-----` armored block into its
@@ -413,17 +404,7 @@ object PGPUtils {
         // armorHeaders is available after reading; null means no Hash header was found
         val hashType = ain.armorHeaders?.firstOrNull { it.startsWith("Hash:") }?.substringAfter(":")?.trim()
 
-        return CleartextMessage(text, sigs[0], hashContent(text, hashType))
-    }
-
-    fun hashContent(content: String, hashType: String?): String? = when (hashType) {
-        null -> null
-        "SHA256" -> {
-            java.security.MessageDigest.getInstance("SHA-256")
-                .digest(content.toByteArray(Charsets.UTF_8))
-                .joinToString("") { "%02x".format(it) }
-        }
-        else -> throw Exception("Unknown hash type")
+        return CleartextMessage(text, sigs[0])
     }
 
     /**
@@ -454,7 +435,7 @@ object PGPUtils {
      * Returns the key ID of the first public-key-encrypted session key in [ciphertext],
      * or null if the message contains no public-key-encrypted data.
      */
-    fun findDecryptingKeyId(ciphertext: String): Long? {
+    fun findDecryptingKeyId(ciphertext: String): KeyIdentifier? {
         val pgpStream = PGPUtil.getDecoderStream(
             ByteArrayInputStream(ciphertext.toByteArray(Charsets.US_ASCII))
         )
@@ -464,7 +445,7 @@ object PGPUtils {
         val encDataList = obj as? PGPEncryptedDataList ?: return null
         return encDataList.encryptedDataObjects.asSequence()
             .filterIsInstance<PGPPublicKeyEncryptedData>()
-            .map { it.keyID }
+            .map { it.keyIdentifier }
             .firstOrNull()
     }
 
@@ -532,7 +513,7 @@ object PGPUtils {
 
         val pbe = encDataList.encryptedDataObjects.asSequence()
             .filterIsInstance<PGPPublicKeyEncryptedData>()
-            .find { it.keyID == secretKey.keyID }
+            .find { it.keyIdentifier == secretKey.keyIdentifier }
             ?: throw Exception("Message not encrypted for key ${secretKey.keyID}")
 
         val clearStream = pbe.getDataStream(BcPublicKeyDataDecryptorFactory(privateKey))

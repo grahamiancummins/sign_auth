@@ -3,6 +3,9 @@ package com.symbolscope.signauth.pgp
 import org.bouncycastle.bcpg.ArmoredOutputStream
 import org.bouncycastle.openpgp.PGPPublicKey
 import org.bouncycastle.openpgp.PGPSecretKey
+import org.bouncycastle.openpgp.PGPSecretKeyRing
+import org.bouncycastle.openpgp.PGPUtil
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
 /**
@@ -16,7 +19,7 @@ import java.io.ByteArrayOutputStream
  * - On GnuPG 2.x the gpg-agent must be running for secret-key operations; pass
  *   `--pinentry-mode loopback` in [extraArgs] if you need non-interactive mode.
  */
-class GnuPGKeyStore(
+class  GnuPGKeyStore(
     val homedir: String? = null,
     private val extraArgs: List<String> = emptyList()
 ) : KeyStore {
@@ -72,14 +75,30 @@ class GnuPGKeyStore(
         val hex = "%016X".format(keyId)
         val result = run(buildArgs("--armor", "--export", "0x$hex"))
         if (!result.stdout.contains("BEGIN PGP")) return null
-        return runCatching { PGPUtils.publicKeyFromArmoredString(result.stdout) }.getOrNull()
+        val key = runCatching { PGPUtils.publicKeyFromArmoredString(result.stdout) }.getOrNull() ?: return null
+        if (key.keyIdentifier.keyId != keyId) {
+            throw Exception("Key lookup error")
+        }
+        return key
     }
 
     override fun getSecret(keyId: Long): PGPSecretKey? {
         val hex = "%016X".format(keyId)
         val result = run(buildArgs("--armor", "--export-secret-keys", "0x$hex"))
         if (!result.stdout.contains("BEGIN PGP")) return null
-        return runCatching { PGPUtils.secretKeyFromArmoredString(result.stdout) }.getOrNull()
+        val key = runCatching {
+            val ins = PGPUtil.getDecoderStream(
+                ByteArrayInputStream(result.stdout.toByteArray(Charsets.US_ASCII))
+            )
+            val ring = PGPSecretKeyRing(ins, PGPUtils.fingerprintCalculator)
+            // Return the specific subkey if the requested ID belongs to one;
+            // fall back to the primary key (e.g. when the subkey ID wasn't found).
+            ring.getSecretKey(keyId) ?: ring.secretKey
+        }.getOrNull() ?: return null
+        if (key.keyIdentifier.keyId != keyId) {
+            throw Exception("Key lookup error")
+        }
+        return key
     }
 
     override fun getUser(userId: String): User? {

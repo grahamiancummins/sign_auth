@@ -51,15 +51,6 @@ class PGPTest {
     }
 
     @Test
-    fun testV() {
-        val pubKey = PGPUtils.publicKeyFromArmoredString(TestData.publicKey)
-        val signed = PGPUtils.parseCleartextSigned(TestData.clearsignedMessage)
-        val verified = PGPUtils.verifyCleartext(signed, pubKey)
-        assertTrue(verified)
-    }
-
-
-    @Test
     fun testKeySign() {
         val tomKey = PGPUtils.secretKeyFromArmoredString(TestData.testSecretKey)
         val newPubKey = PGPUtils.generate("dave@idobutthat.info", "test").publicKey
@@ -72,6 +63,14 @@ class PGPTest {
         val newSigs =  signed.signatures.asSequence().toList()
         assertEquals(2, newSigs.size)
         assertTrue(newSigs.any { it.keyID == tomKey.keyID })
+    }
+
+    @Test
+    fun testEncrypted() {
+        val enc = TestData.encryptedMessage
+        val pgp = PGP(GnuPGKeyStore(null))
+        val dec = pgp.decryptAndVerify(enc, "")
+        assertTrue(dec.signatureValid)
     }
 
     @Test
@@ -104,9 +103,9 @@ class PGPTest {
 
         val plaintext = "a secret message"
         val encrypted = pgp.encrypt(plaintext, TestData.user)
-        val decrypted = pgp.decrypt(encrypted, TestData.passphrase)
+        val decrypted = pgp.decryptAndVerify(encrypted, TestData.passphrase)
 
-        assertEquals(plaintext, decrypted)
+        assertEquals(plaintext, decrypted.plaintext)
     }
 
     @Test
