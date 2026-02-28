@@ -66,7 +66,7 @@ fun main() {
             }
 
             post("/message") {
-                val armoredBody = call.receiveText()
+                val armoredBody = call.receive<ByteArray>().toString(Charsets.UTF_8)
 
                 // ── Step 1: decrypt (if necessary) and verify signature ─────────────
                 var wasEncrypted = false
@@ -106,7 +106,7 @@ fun main() {
                 val senderKeyId = decryption.signedByKeyId!!   // non-null when signatureValid
                 val senderPublicKey = withContext(Dispatchers.IO) { keyStore.get(senderKeyId) }
                 if (senderPublicKey == null) {
-                    call.respond(HttpStatusCode.NotFound)
+                    call.respond(HttpStatusCode.Forbidden, "Signer is not authorized")
                     return@post
                 }
 
