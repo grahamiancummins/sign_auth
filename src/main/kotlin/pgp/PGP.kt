@@ -2,6 +2,7 @@ package com.symbolscope.signauth.pgp
 
 import org.bouncycastle.bcpg.ArmoredInputStream
 import org.bouncycastle.bcpg.ArmoredOutputStream
+import org.bouncycastle.bcpg.BCPGOutputStream
 import org.bouncycastle.bcpg.CompressionAlgorithmTags
 import org.bouncycastle.bcpg.HashAlgorithmTags
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags
@@ -347,6 +348,40 @@ object PGPUtils {
         sigGen.generate().encode(compOut)
         compOut.close()
         encOut.close()
+        armoredOut.close()
+
+        return baos.toString(Charsets.US_ASCII)
+    }
+
+    /**
+     * Sign [plaintext] with [secretKey] and return an ASCII-armored
+     * `-----BEGIN PGP SIGNED MESSAGE-----` cleartext-signed block.
+     * The signature is computed with canonical CRLF line endings (RFC 4880 §7),
+     * matching the verification done in [verifyCleartext].
+     */
+    fun cleartextSign(plaintext: String, secretKey: PGPSecretKey, passphrase: String): String {
+        val privateKey = extractPrivateKey(secretKey, passphrase)
+        val sigGen = sigGenerator(secretKey)
+        sigGen.init(PGPSignature.CANONICAL_TEXT_DOCUMENT, privateKey)
+
+        val baos = ByteArrayOutputStream()
+        val armoredOut = ArmoredOutputStream(baos)
+        armoredOut.beginClearText(HashAlgorithmTags.SHA256)
+
+        val crlf = byteArrayOf('\r'.code.toByte(), '\n'.code.toByte())
+        val lines = BufferedReader(StringReader(plaintext)).readLines()
+        lines.forEachIndexed { index, line ->
+            val lineBytes = line.trimEnd().toByteArray(Charsets.UTF_8)
+            armoredOut.write(lineBytes)
+            if (index < lines.size - 1) armoredOut.write(crlf)
+            sigGen.update(lineBytes)
+            sigGen.update(crlf)
+        }
+
+        armoredOut.endClearText()
+        val bcOut = BCPGOutputStream(armoredOut)
+        sigGen.generate().encode(bcOut)
+        bcOut.close()
         armoredOut.close()
 
         return baos.toString(Charsets.US_ASCII)

@@ -69,14 +69,17 @@ fun main() {
                 val armoredBody = call.receiveText()
 
                 // ── Step 1: decrypt (if necessary) and verify signature ─────────────
+                var wasEncrypted = false
                 val decryption: VerifiedDecryption = when {
-                    armoredBody.trimStart().startsWith("-----BEGIN PGP MESSAGE-----") ->
+                    armoredBody.trimStart().startsWith("-----BEGIN PGP MESSAGE-----") -> {
+                        wasEncrypted = true
                         // Encrypted (and possibly signed) message — delegate to PGP class.
                         // The server's secret key is located automatically by inspecting the
                         // session key packets in the message.
                         withContext(Dispatchers.IO) {
                             pgp.decryptAndVerify(armoredBody, serverKeyPassphrase)
                         }
+                    }
 
                     armoredBody.trimStart().startsWith("-----BEGIN PGP SIGNED MESSAGE-----") -> {
                         // Cleartext signed message — parse, then look up the sender's key.
@@ -114,13 +117,16 @@ fun main() {
                 }
                 val upstreamText = upstreamResponse.bodyAsText()
 
-                // ── Step 4: sign with server key, encrypt to sender ─────────────────
+                // ── Step 4: sign with server key, encrypt to sender if request was encrypted
                 val serverSecretKey = withContext(Dispatchers.IO) {
                     keyStore.getSecret(serverKeyUserId)
                         ?: error("Server secret key '$serverKeyUserId' not found")
                 }
                 val armoredResponse = withContext(Dispatchers.IO) {
-                    PGPUtils.encryptAndSign(upstreamText, senderPublicKey, serverSecretKey, serverKeyPassphrase)
+                    if (wasEncrypted)
+                        PGPUtils.encryptAndSign(upstreamText, senderPublicKey, serverSecretKey, serverKeyPassphrase)
+                    else
+                        PGPUtils.cleartextSign(upstreamText, serverSecretKey, serverKeyPassphrase)
                 }
 
                 call.respondText(armoredResponse, ContentType.Text.Plain)
