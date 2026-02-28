@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ $# -eq 0 ]; then
+    echo "Usage: ss_query <query string...>" >&2
+    exit 1
+fi
+
+QUERY="$*"
+TMPDIR_WORK=$(mktemp -d)
+echo $TMPDIR_WORK
+trap 'rm -rf "$TMPDIR_WORK"' EXIT
+
+QUERY_FILE="$TMPDIR_WORK/query.txt"
+SIGNED_FILE="$QUERY_FILE.asc"
+
+printf '%s' "the $QUERY" > "$QUERY_FILE"
+printf '\n\n' >> "$QUERY_FILE"
+
+gpg -a --clearsign "$QUERY_FILE"
+
+curl -X POST \
+    -H "Content-Type: application/octet-stream" \
+    --data-binary "@$SIGNED_FILE" \
+    https://data.symbolscope.com/message
