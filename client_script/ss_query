@@ -8,7 +8,6 @@ fi
 
 QUERY="$*"
 TMPDIR_WORK=$(mktemp -d)
-echo $TMPDIR_WORK
 trap 'rm -rf "$TMPDIR_WORK"' EXIT
 
 QUERY_FILE="$TMPDIR_WORK/query.txt"
