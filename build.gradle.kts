@@ -7,6 +7,17 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
+    maven {
+        url = uri("https://data.symbolscope.com/snapshots")
+        credentials {
+            username = providers.gradleProperty("reposiliteUser")
+                .orElse(providers.environmentVariable("REPOSILITE_USER"))
+                .orNull
+            password = providers.gradleProperty("reposilitePassword")
+                .orElse(providers.environmentVariable("REPOSILITE_PASSWORD"))
+                .orNull
+        }
+    }
 }
 
 val ktorVersion = "2.3.13"
@@ -30,6 +41,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.16.1")
     implementation("org.bouncycastle:bcpg-jdk18on:1.83")
     implementation("org.pgpainless:pgpainless-core:2.0.2")
+    implementation("com.symbolscope:pgp-tools:1.0-SNAPSHOT")
 }
 
 kotlin {

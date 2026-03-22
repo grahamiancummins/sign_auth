@@ -1,6 +1,6 @@
 package com.symbolscope.signauth
 
-import com.symbolscope.signauth.pgp.*
+import com.symbolscope.pgp.*
 import io.ktor.client.*
 import io.ktor.client.engine.cio.CIO as ClientCIO
 import io.ktor.client.request.*
