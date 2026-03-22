@@ -10,12 +10,8 @@ repositories {
     maven {
         url = uri("https://data.symbolscope.com/snapshots")
         credentials {
-            username = providers.gradleProperty("reposiliteUser")
-                .orElse(providers.environmentVariable("REPOSILITE_USER"))
-                .orNull
-            password = providers.gradleProperty("reposilitePassword")
-                .orElse(providers.environmentVariable("REPOSILITE_PASSWORD"))
-                .orNull
+            username = providers.environmentVariable("REPOSILITE_USER").orNull
+            password = providers.environmentVariable("REPOSILITE_PASSWORD").orNull
         }
     }
 }
